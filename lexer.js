@@ -1,5 +1,6 @@
 num = '0123456789'
 alpha = 'abcdefghijklmnopqrstuvwxyz'
+alpha+=alpha.toUpperCase()
 alphnum = alpha+num
 module.exports = class lexer {
     constructor(code) {
@@ -15,11 +16,12 @@ module.exports = class lexer {
     next(check) {
         var next = this.code[this.cursor+1]
         if (next === undefined) {
-            throw "EOF"
+            throw Error("EOF")
         }
         if (check !== undefined){
+            ///console.log(check(next))
             if (!check(next)){
-                throw 'Unexpected'
+                throw Error('Unexpected "'+next+'"')
             }
         }
         this.cursor+=1
@@ -31,11 +33,23 @@ module.exports = class lexer {
     _var() {
         this.cursor+= 2
         var name = this.code[this.cursor]
-        while (true){
+        var dotallowed = true
+        var cont = true
+        while (cont) {
             try {
-                name+=this.next((x)=>alphnum.includes(x))
+                
+                if (!dotallowed) {
+                    name+=this.next((x)=>alphnum.includes(x))
+                    dotallowed = true
+                } else {
+                    name+=this.next((x)=>(alphnum+'.').includes(x))
+                    //console.log(name)
+                    if (name[name.length-1] === '.') {
+                        dotallowed = false
+                    }
+                }
             } catch {
-                break
+                cont = false
             }
         }
         try {
@@ -56,10 +70,24 @@ module.exports = class lexer {
     }
     command() {
         var name = this.code[this.cursor]
-        while (true) {
+        var dotallowed = true
+        var cont = true
+        while (cont) {
             try {
-                name+=this.next((x) => alphnum.includes(x))
-            } catch {break}
+                
+                if (!dotallowed) {
+                    name+=this.next((x)=>alphnum.includes(x))
+                    dotallowed = true
+                } else {
+                    name+=this.next((x)=>(alphnum+'.').includes(x))
+                    //console.log(name)
+                    if (name[name.length-1] === '.') {
+                        dotallowed = false
+                    }
+                }
+            } catch {
+                cont = false
+            }
         }
         if (name == 'set') {
             return this._var()
@@ -93,6 +121,9 @@ module.exports = class lexer {
         }
     }
     funcdef() {
+        try{
+            this.next((x)=>[' ', '\t'].includes(x))
+        } catch {}
         this.next((x) => x === '{')
         var body = []
         while (true) {
@@ -148,6 +179,20 @@ module.exports = class lexer {
             'value': JSON.parse(curr)
         }
     }
+    commentsingle() {
+        while (this.next() !== '\n') {}
+        this.cursor-=1
+    }
+    commentmulitple() {
+        var s = ''
+        while (true) {
+            s+=this.next()
+            if (s.slice(s.length-2) === '*/') {
+                break
+            }
+        }
+        //this.cursor+=2
+    }
     parseone() {
         if (this.eof()) {throw Error('eee')}
         var t = this
@@ -157,14 +202,20 @@ module.exports = class lexer {
                     return
                 }
                //  console.log(curr, t.cursor)
-
+            
                 if (['"', "'"].includes(curr)) {
                     return t.string()
                 } else if (curr === 'f') {
                     return t.funcdef()
                 } else if (num.includes(curr)) {
                     return t.number()
-                } else if ([" ", '\n', '\t', ',', '='].includes(curr)) {
+                } else if ([" ", '\n', '\t', ',', '=', ';'].includes(curr)) {
+                } else if (curr === '/' && t.code[t.cursor+1] === '/') {
+                    // comments (single line)
+                    return t.commentsingle()
+                } else if (curr === '/' && t.code[t.cursor+1] === '*') {
+                    // comments (multi line)
+                    return t.commentmulitple()
                 } else if (['{', '}', '(', ')'].includes(curr)) {
                     //console.log(curr)
                     return {
@@ -174,7 +225,7 @@ module.exports = class lexer {
                 } else if (alpha.includes(curr)) {
                     return t.command()
                 } else {
-                    throw 'wat is this'+' '+curr
+                    throw Error('wat is this'+' '+curr)
                 }
         }
         var r = f()

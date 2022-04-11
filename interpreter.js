@@ -1,39 +1,38 @@
 const scope = require(__dirname+'/scope.js')
+const fs = require('fs')
 
 var cmds = {}
-function cmd(func) {
-    cmds[func.name] = func
+function cmd(func, name) {
+    if (name === undefined) name = func.name
+    cmds[name] = func
     return cmd
 }
-cmd(function out(t, ...args){
-    return console.log(...args)
-})
-cmd(function run(t, f, ...args){
-    return t.runfunc(f, args)
-})    
-cmd(function arg(t, n){
-    return t.local.args[n]
-})
+function leach(name, jsObj) {
+    cmds[name] = new Proxy(jsObj, {
+        get: function(n) {
+            var v = jsObj[n]
+            if (typeof v === 'function') {
+                return function (t, ...args) {
+                    return v.apply(jsObj, args)
+                }
+            }
+            return v
+        }
+    })
+}
+var builtins = cmd
+eval(fs.readFileSync(__dirname+'/builtins.js').toString())
 
-cmd(function set(t, name, value){
-    return t.local.set(name, value)
-})
-cmd(function get(t, name){
-    return t.local.get(name)
-})
-cmd(function nonlocal(t, name){
-    return t.local.unlocal(name)
-})
-cmd(function global(t, name){
-    return t.local.set_global(name)
-})
-module.exports = class interpreter{
-    constructor(parsed){
+class interpreter{
+    constructor(parsed, s){
         this.ast = parsed
-        this.globals = new scope(cmds)
+        if (s===undefined) {
+            s = new scope(cmds)
+        }
+        this.globals = s
         this.local = this.globals
         this.r = this.eval(this.ast)
-        return this.r
+        this.exports = this.globals.get('exports')
     }
     enterscope(vars={}, args=[]){
         this.local = new scope(vars, args, this.local, this.globals)
@@ -42,10 +41,12 @@ module.exports = class interpreter{
         this.local = this.local.parent || this.globals
     }
     call(name, a){
-        var f = this.local.get(name)
-        if (!typeof f === 'function'){
+        var f = get(this,name)
+        if (!(typeof f === 'function')){
             throw Error("nooeeee")
+            return
         }
+        
         var args = []
         for (var arg of a) {
             args.push(this.eval(arg))
@@ -85,3 +86,5 @@ module.exports = class interpreter{
         }
     }
 }
+
+module.exports = interpreter

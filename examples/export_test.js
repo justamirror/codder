@@ -1,0 +1,1 @@
+set exports.test = 'lol'
