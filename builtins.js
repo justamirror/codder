@@ -1,8 +1,33 @@
 const lexer = require(__dirname+'/lexer')
+const Path = require('path')
 // MODULES
 cmd(function _import(t, path){
-    return new interpreter(new lexer(fs.readFileSync(path).toString())).exports
+    function import_codder(p) {
+        return new interpreter(new lexer(fs.readFileSync(p).toString())).exports
+    }
+    function import_js(p) {
+        return require(p)
+    }
+    if (path.startsWith('./')) {
+        return import_codder(path)
+    } else {
+        path = Path.join(__dirname, 'modules', path)
+        if (fs.existsSync(path)) {
+            if (path.endsWith('.cod')) {
+                return import_codder(path)
+            } else {
+                return import_js(path)
+            }
+        } else if (fs.existsSync(path+'.js')) {
+            return import_js(path+'.js')
+        } else if (fs.existsSync(path+'.cod')) {
+            import_js(path+'.cod')
+        } else {
+            throw Error("cannot import module "+path)
+        }
+    }
 }, 'import')
+
 
 // MISC
 cmd(function run(t, f, ...args){

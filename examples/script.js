@@ -13,3 +13,5 @@ myf('b');
 println(arg2)
 set module = import('./export_test.js')
 out(module.test)
+set a = import('testmodule')
+out(a.hi)

@@ -7,7 +7,7 @@ function cmd(func, name) {
     cmds[name] = func
     return cmd
 }
-function leach(name, jsObj) {
+function leech(name, jsObj) {
     cmds[name] = new Proxy(jsObj, {
         get: function(n) {
             var v = jsObj[n]
